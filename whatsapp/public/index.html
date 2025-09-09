@@ -57,7 +57,7 @@ function renderSession(isActive) {
         logoutBtn.classList.remove('d-none');
     } else {
         sessionInfo.innerHTML = `<div class='alert alert-warning'>No hay sesión activa. Escanee el QR para iniciar sesión.</div>`;
-    fetch('/qr?_=' + Date.now())
+    fetch('./qr?_=' + Date.now())
             .then(resp => {
                 if (resp.ok) return resp.blob();
                 throw new Error('QR no disponible');
@@ -75,7 +75,7 @@ function renderSession(isActive) {
 
 
 function checkStatus(showCredsMsg = false) {
-    fetch('/status?_=' + Date.now())
+    fetch('./status?_=' + Date.now())
         .then(resp => resp.json())
         .then(data => {
             renderSession(data.success);
@@ -91,7 +91,7 @@ function checkStatus(showCredsMsg = false) {
 
 
 logoutBtn.addEventListener('click', () => {
-    fetch('/logout')
+    fetch('./logout')
         .then(resp => resp.json())
         .then(data => {
             if (data.success) {
@@ -107,7 +107,7 @@ logoutBtn.addEventListener('click', () => {
 // Polling para actualizar el estado cada 3 segundos
 globalThis.lastSession = false;
 setInterval(() => {
-    fetch('/status?_=' + Date.now())
+    fetch('./status?_=' + Date.now())
         .then(resp => resp.json())
         .then(data => {
             if (data.success !== globalThis.lastSession) {
