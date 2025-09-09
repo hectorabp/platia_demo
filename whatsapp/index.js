@@ -19,8 +19,8 @@ const ultimosMensajes = [];
 const app = express();
 app.use(bodyParser.json());
 
-// Montar el router de rutas de WhatsApp bajo /whatsapp
-app.use('/whatsapp', whatsappRoutes);
+// Montar el router de rutas de WhatsApp en la raíz (se usa Traefik con strip prefix en docker-compose)
+app.use('/', whatsappRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
