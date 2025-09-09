@@ -16,7 +16,7 @@ services:
 
   conversation_manager:
     build:
-      context: ./backend
+      context: ./conversation_manager 
       dockerfile: Dockerfile
     container_name: conversation_manager
     restart: unless-stopped
