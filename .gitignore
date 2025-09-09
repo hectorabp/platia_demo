@@ -1,0 +1,44 @@
+# Entornos y variables
+.env
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Docker
+*.pid
+
+# VSCode
+.vscode/
+
+# Archivos temporales
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Otros
+*.log
+*.sqlite3
+*.db
+
+# Compilados
+*.so
+*.o
+*.out
+
+# Archivos de sistema
+.idea/
+*.iml
+
+# Archivos de credenciales
+whatsapp/qr.png
