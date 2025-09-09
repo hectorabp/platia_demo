@@ -1,19 +1,30 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import redis from '../config/redis.js';
 import { useRedisAuthState } from '../auth_state.js';
 
 const router = express.Router();
 
+// Determinar __dirname en ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // Ruta para servir el panel principal (index.html) solo si HTTP_URL=TRUE
 if (process.env.HTTP_URL === 'TRUE') {
     router.get('/', (req, res) => {
-        const indexPath = path.join(process.cwd(), 'public', 'index.html');
+        const indexPath = path.join(__dirname, '..', 'public', 'index.html');
         if (fs.existsSync(indexPath)) {
             res.sendFile(indexPath);
         } else {
-            res.status(404).send('Archivo index.html no encontrado');
+            // Intentar ruta alternativa (por si se ejecuta desde otro CWD)
+            const altPath = path.join(process.cwd(), 'whatsapp', 'public', 'index.html');
+            if (fs.existsSync(altPath)) {
+                res.sendFile(altPath);
+            } else {
+                res.status(404).send('Archivo index.html no encontrado');
+            }
         }
     });
 }
