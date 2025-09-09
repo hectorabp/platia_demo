@@ -133,7 +133,7 @@ async function connectToWhatsApp () {
             // Guardar últimos mensajes recibidos para el endpoint HTTP
             ultimosMensajes.unshift({ phone, name, message: mensaje, fecha: new Date().toISOString() });
             if (ultimosMensajes.length > 20) ultimosMensajes.length = 20;
-            console.log(`[Mensaje]: Mensaje recibido por ${phone} y enviado a N8N date: ${new Date().toISOString()}`);
+            console.log(`[Mensaje]: Mensaje recibido por ${phone} y enviado a ${REDIS_CHANNEL} date: ${new Date().toISOString()}`);
             await redisPub.publish(REDIS_CHANNEL, JSON.stringify(payload));
         }
     });
@@ -218,7 +218,7 @@ async function connectToWhatsApp () {
                         verificationResults.push({ phone, surveySent, observation });
                     }
                     if (enviados.length > 0) {
-                        console.log(`[Mensaje]: Mensaje recibido por N8N y enviado a ${enviados.join(', ')} date: ${fechaEnvio}`);
+                        console.log(`[Mensaje]: Mensaje recibido por ${REDIS_CHANNEL} y enviado a ${enviados.join(', ')} date: ${fechaEnvio}`);
                     }
                 }
             } catch (e) {

@@ -13,10 +13,11 @@ RUN npm install
 COPY config/ ./config
 COPY routes/ ./routes
 COPY service/ ./service
+COPY public/ ./public
 COPY index.js ./index.js
 COPY auth_state.js ./auth_state.js
 COPY clean_redis_auth.js ./clean_redis_auth.js
-COPY public/ ./public
+
 
 
 ENV TZ=America/Asuncion
