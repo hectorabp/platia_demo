@@ -1,0 +1,63 @@
+
+services:
+  mongo_platia:
+    image: mongo:5.0
+    restart: unless-stopped
+    container_name: mongo_platia
+    environment:
+      # Estas variables inicializan el usuario root de MongoDB
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_PASSWORD}
+      - MONGO_INITDB_DATABASE=${MONGO_DATABASE}
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - platcom_net
+
+  conversation_manager:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: conversation_manager
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=development
+      - DB_MONGO_HOST=mongo_platia
+      - DB_MONGO_NAME=${MONGO_DATABASE}
+      - DB_MONGO_USER=${MONGO_USERNAME}
+      - DB_MONGO_PASS=${MONGO_PASSWORD}
+    networks:
+      - platcom_net
+    volumes:
+      - ./backend:/app
+
+  whatsapp_platia:
+    build:
+      context: ./whatsapp
+      dockerfile: Dockerfile
+    container_name: whatsapp_platia
+    restart: unless-stopped
+    environment:
+      - TZ=America/Asuncion
+      - REDIS_HOST=${REDIS_PEA_HOST}
+      - REDIS_PORT=${REDIS_PEA_PORT}
+      - REDIS_PASSWORD=${REDIS_PEA_PASSWORD}
+      - HTTP_URL=TRUE
+    networks:
+      - platcom_net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whatsapp_platia.rule=Host(`${DOMAIN_HOST}`) && PathPrefix(`/whatsapp_platia`)"
+      - "traefik.http.routers.whatsapp_platia.entrypoints=web"
+      - "traefik.http.services.whatsapp_platia.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.whatsapp_platia-strip.stripprefix.prefixes=/whatsapp_platia"
+      - "traefik.http.middlewares.whatsapp_platia-strip.stripprefix.forceSlash=true"
+      - "traefik.http.routers.whatsapp_platia.middlewares=whatsapp_platia-strip"
+
+networks:
+  platcom_net:
+    external: true
+    name: platcom_net
+
+volumes:
+  mongo_data:

@@ -1,0 +1,704 @@
+Instalar
+Utilice la versión estable:
+
+yarn add @whiskeysockets/baileys
+Copiar
+Utilice la versión Edge (sin garantía de estabilidad, pero con las últimas correcciones y funciones)
+
+yarn add github:WhiskeySockets/Baileys
+Copiar
+Luego importa tu código usando:
+
+import makeWASocket from '@whiskeysockets/baileys'
+Copiar
+Pruebas unitarias
+HACER
+
+Conexión de varios dispositivos (recomendado)
+WhatsApp proporciona una API multidispositivo que permite autenticar a Baileys como un segundo cliente de WhatsApp escaneando un código QR con WhatsApp en su teléfono.
+
+import makeWASocket, { DisconnectReason } from '@whiskeysockets/baileys'
+import { Boom } from '@hapi/boom'
+
+async function connectToWhatsApp () {
+    const sock = makeWASocket({
+        // can provide additional config here
+        printQRInTerminal: true
+    })
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect } = update
+        if(connection === 'close') {
+            const shouldReconnect = (lastDisconnect.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut
+            console.log('connection closed due to ', lastDisconnect.error, ', reconnecting ', shouldReconnect)
+            // reconnect if not logged out
+            if(shouldReconnect) {
+                connectToWhatsApp()
+            }
+        } else if(connection === 'open') {
+            console.log('opened connection')
+        }
+    })
+    sock.ev.on('messages.upsert', m => {
+        console.log(JSON.stringify(m, undefined, 2))
+
+        console.log('replying to', m.messages[0].key.remoteJid)
+        await sock.sendMessage(m.messages[0].key.remoteJid!, { text: 'Hello there!' })
+    })
+}
+// run in main file
+connectToWhatsApp()
+Copiar
+Si la conexión es exitosa verás un código QR impreso en la pantalla de tu terminal, escanéalo con WhatsApp en tu teléfono y ¡estarás conectado!
+
+Nota: instalar qrcode-terminalusando yarn add qrcode-terminalpara imprimir automáticamente el código QR en la terminal.
+
+Nota: El código para la compatibilidad con la versión anterior de WA Web (anterior a la multidispositivo) se ha eliminado en la v5. Ahora solo se admite la conexión multidispositivo estándar. Esto se debe a que WA parece haber eliminado por completo la compatibilidad con la versión anterior.
+
+Conexión de API móviles nativas
+Baileys también admite la API móvil nativa, que permite a los usuarios autenticarse como un cliente independiente de WhatsApp usando su número de teléfono.
+
+Ejecute el archivo de ejemplo con --mobileel indicador cli para utilizar la API móvil nativa.
+
+SocketConfigAquí se menciona toda la estructura con valores predeterminados:
+type SocketConfig = {
+    /** the WS url to connect to WA */
+    waWebSocketUrl: string | URL
+    /** Fails the connection if the socket times out in this interval */
+    connectTimeoutMs: number
+    /** Default timeout for queries, undefined for no timeout */
+    defaultQueryTimeoutMs: number | undefined
+    /** ping-pong interval for WS connection */
+    keepAliveIntervalMs: number
+    /** proxy agent */
+    agent?: Agent
+    /** pino logger */
+    logger: Logger
+    /** version to connect with */
+    version: WAVersion
+    /** override browser config */
+    browser: WABrowserDescription
+    /** agent used for fetch requests -- uploading/downloading media */
+    fetchAgent?: Agent
+    /** should the QR be printed in the terminal */
+    printQRInTerminal: boolean
+    /** should events be emitted for actions done by this socket connection */
+    emitOwnEvents: boolean
+    /** provide a cache to store media, so does not have to be re-uploaded */
+    mediaCache?: NodeCache
+    /** custom upload hosts to upload media to */
+    customUploadHosts: MediaConnInfo['hosts']
+    /** time to wait between sending new retry requests */
+    retryRequestDelayMs: number
+    /** max msg retry count */
+    maxMsgRetryCount: number
+    /** time to wait for the generation of the next QR in ms */
+    qrTimeout?: number;
+    /** provide an auth state object to maintain the auth state */
+    auth: AuthenticationState
+    /** manage history processing with this control; by default will sync up everything */
+    shouldSyncHistoryMessage: (msg: proto.Message.IHistorySyncNotification) => boolean
+    /** transaction capability options for SignalKeyStore */
+    transactionOpts: TransactionCapabilityOptions
+    /** provide a cache to store a user's device list */
+    userDevicesCache?: NodeCache
+    /** marks the client as online whenever the socket successfully connects */
+    markOnlineOnConnect: boolean
+    /**
+     * map to store the retry counts for failed messages;
+     * used to determine whether to retry a message or not */
+    msgRetryCounterMap?: MessageRetryMap
+    /** width for link preview images */
+    linkPreviewImageThumbnailWidth: number
+    /** Should Baileys ask the phone for full history, will be received async */
+    syncFullHistory: boolean
+    /** Should baileys fire init queries automatically, default true */
+    fireInitQueries: boolean
+    /**
+     * generate a high quality link preview,
+     * entails uploading the jpegThumbnail to WA
+     * */
+    generateHighQualityLinkPreview: boolean
+
+    /** options for axios */
+    options: AxiosRequestConfig<any>
+    /**
+     * fetch a message from your store
+     * implement this so that messages failed to send (solves the "this message can take a while" issue) can be retried
+     * */
+    getMessage: (key: proto.IMessageKey) => Promise<proto.IMessage | undefined>
+}
+
+Emular la aplicación de escritorio en lugar de la web
+Baileys, por defecto, emula una sesión web de Chrome.
+Si desea emular una conexión de escritorio (y recibir más historial de mensajes), agregue esto a su configuración de Socket:
+const conn = makeWASocket({
+    ...otherOpts,
+    // can use Windows, Ubuntu here too
+    browser: Browsers.macOS('Desktop'),
+    syncFullHistory: true
+})
+
+Guardar y restaurar sesiones
+Obviamente no quieres seguir escaneando el código QR cada vez que quieras conectarte.
+
+Entonces, puedes cargar las credenciales para volver a iniciar sesión:
+import makeWASocket, { BufferJSON, useMultiFileAuthState } from '@whiskeysockets/baileys'
+import * as fs from 'fs'
+
+// utility function to help save the auth state in a single folder
+// this function serves as a good guide to help write auth & key states for SQL/no-SQL databases, which I would recommend in any production grade system
+const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys')
+// will use the given state to connect
+// so if valid credentials are available -- it'll connect without QR
+const conn = makeWASocket({ auth: state }) 
+// this will be called as soon as the credentials are updated
+conn.ev.on ('creds.update', saveCreds)
+Nota: Cuando se recibe o envía un mensaje, debido a que las sesiones de señal necesitan actualizarse, las claves de autenticación ( authState.keys) se actualizan. En ese caso, debe guardar las claves actualizadas ( authState.keys.set()se llama a [nombre de la clave]. De lo contrario, sus mensajes no llegarán al destinatario y se producirán otras consecuencias inesperadas. La useMultiFileAuthStatefunción se encarga de esto automáticamente, pero para cualquier otra implementación importante, deberá tener mucho cuidado con la gestión del estado de las claves.
+
+Escuchando actualizaciones de conexión
+Baileys ahora activa el connection.updateevento para avisarle de que se ha actualizado la conexión. Estos datos tienen la siguiente estructura:
+type ConnectionState = {
+    /** connection is now open, connecting or closed */
+    connection: WAConnectionState
+    /** the error that caused the connection to close */
+    lastDisconnect?: {
+        error: Error
+        date: Date
+    }
+    /** is this a new login */
+    isNewLogin?: boolean
+    /** the current QR code */
+    qr?: string
+    /** has the device received all pending notifications while it was offline */
+    receivedPendingNotifications?: boolean 
+}
+Nota: esto también ofrece actualizaciones del código QR.
+Manejo de eventos
+Baileys usa la sintaxis EventEmitter para eventos. Todos están bien escritos, así que no deberías tener problemas con un editor Intellisense como VS Code.
+
+Los eventos se escriben como se menciona aquí:
+
+export type BaileysEventMap = {
+    /** connection state has been updated -- WS closed, opened, connecting etc. */
+    'connection.update': Partial<ConnectionState>
+    /** credentials updated -- some metadata, keys or something */
+    'creds.update': Partial<AuthenticationCreds>
+    /** history sync, everything is reverse chronologically sorted */
+    'messaging-history.set': {
+        chats: Chat[]
+        contacts: Contact[]
+        messages: WAMessage[]
+        isLatest: boolean
+    }
+    /** upsert chats */
+    'chats.upsert': Chat[]
+    /** update the given chats */
+    'chats.update': Partial<Chat>[]
+    /** delete chats with given ID */
+    'chats.delete': string[]
+    'labels.association': LabelAssociation
+    'labels.edit': Label
+    /** presence of contact in a chat updated */
+    'presence.update': { id: string, presences: { [participant: string]: PresenceData } }
+
+    'contacts.upsert': Contact[]
+    'contacts.update': Partial<Contact>[]
+
+    'messages.delete': { keys: WAMessageKey[] } | { jid: string, all: true }
+    'messages.update': WAMessageUpdate[]
+    'messages.media-update': { key: WAMessageKey, media?: { ciphertext: Uint8Array, iv: Uint8Array }, error?: Boom }[]
+    /**
+     * add/update the given messages. If they were received while the connection was online,
+     * the update will have type: "notify"
+     *  */
+    'messages.upsert': { messages: WAMessage[], type: MessageUpsertType }
+    /** message was reacted to. If reaction was removed -- then "reaction.text" will be falsey */
+    'messages.reaction': { key: WAMessageKey, reaction: proto.IReaction }[]
+
+    'message-receipt.update': MessageUserReceiptUpdate[]
+
+    'groups.upsert': GroupMetadata[]
+    'groups.update': Partial<GroupMetadata>[]
+    /** apply an action to participants in a group */
+    'group-participants.update': { id: string, participants: string[], action: ParticipantAction }
+
+    'blocklist.set': { blocklist: string[] }
+    'blocklist.update': { blocklist: string[], type: 'add' | 'remove' }
+    /** Receive an update on a call, including when the call was received, rejected, accepted */
+    'call': WACallEvent[]
+}
+
+Puedes escuchar estos eventos así:
+const sock = makeWASocket()
+sock.ev.on('messages.upsert', ({ messages }) => {
+    console.log('got messages', messages)
+})
+
+Implementación de un almacén de datos
+Baileys no incluye un almacenamiento predeterminado para chats, contactos ni mensajes. Sin embargo, se ha proporcionado una implementación sencilla en memoria. El almacenamiento detecta actualizaciones de chats, mensajes nuevos, actualizaciones de mensajes, etc., para tener siempre una versión actualizada de los datos.
+
+Se puede utilizar de la siguiente manera:
+import makeWASocket, { makeInMemoryStore } from '@whiskeysockets/baileys'
+// the store maintains the data of the WA connection in memory
+// can be written out to a file & read from it
+const store = makeInMemoryStore({ })
+// can be read from a file
+store.readFromFile('./baileys_store.json')
+// saves the state to a file every 10s
+setInterval(() => {
+    store.writeToFile('./baileys_store.json')
+}, 10_000)
+
+const sock = makeWASocket({ })
+// will listen from this socket
+// the store can listen from a new socket once the current socket outlives its lifetime
+store.bind(sock.ev)
+
+sock.ev.on('chats.set', () => {
+    // can use "store.chats" however you want, even after the socket dies out
+    // "chats" => a KeyedDB instance
+    console.log('got chats', store.chats.all())
+})
+
+sock.ev.on('contacts.set', () => {
+    console.log('got contacts', Object.values(store.contacts))
+})
+
+Envío de mensajes
+Envía todo tipo de mensajes con una única función:
+
+Mensajes no mediáticos
+import { MessageType, MessageOptions, Mimetype } from '@whiskeysockets/baileys'
+
+const id = 'abcd@s.whatsapp.net' // the WhatsApp ID 
+// send a simple text!
+const sentMsg  = await sock.sendMessage(id, { text: 'oh hello there' })
+// send a reply messagge
+const sentMsg  = await sock.sendMessage(id, { text: 'oh hello there' }, { quoted: message })
+// send a mentions message
+const sentMsg  = await sock.sendMessage(id, { text: '@12345678901', mentions: ['12345678901@s.whatsapp.net'] })
+// send a location!
+const sentMsg  = await sock.sendMessage(
+    id, 
+    { location: { degreesLatitude: 24.121231, degreesLongitude: 55.1121221 } }
+)
+// send a contact!
+const vcard = 'BEGIN:VCARD\n' // metadata of the contact card
+            + 'VERSION:3.0\n' 
+            + 'FN:Jeff Singh\n' // full name
+            + 'ORG:Ashoka Uni;\n' // the organization of the contact
+            + 'TEL;type=CELL;type=VOICE;waid=911234567890:+91 12345 67890\n' // WhatsApp ID + phone number
+            + 'END:VCARD'
+const sentMsg  = await sock.sendMessage(
+    id,
+    { 
+        contacts: { 
+            displayName: 'Jeff', 
+            contacts: [{ vcard }] 
+        }
+    }
+)
+
+const reactionMessage = {
+    react: {
+        text: "💖", // use an empty string to remove the reaction
+        key: message.key
+    }
+}
+
+const sendMsg = await sock.sendMessage(id, reactionMessage)
+
+Envío de mensajes con vistas previas de enlaces
+De forma predeterminada, WA MD no tiene generación de enlaces cuando se envía desde la web
+Baileys tiene una función para generar el contenido para estas vistas previas de enlaces
+Para habilitar el uso de esta función, agregue link-preview-jscomo dependencia a su proyecto conyarn add link-preview-js
+Enviar un enlace:
+// send a link
+const sentMsg  = await sock.sendMessage(id, { text: 'Hi, this was sent using https://github.com/adiwajshing/baileys' })
+
+Mensajes de los medios
+Enviar medios (videos, stickers, imágenes) es más fácil y eficiente que nunca.
+
+Puede especificar un búfer, una URL local o incluso una URL remota.
+Al especificar una URL de medios, Baileys nunca carga todo el buffer en la memoria; incluso encripta los medios como una transmisión legible.
+import { MessageType, MessageOptions, Mimetype } from '@whiskeysockets/baileys'
+// Sending gifs
+await sock.sendMessage(
+    id, 
+    { 
+        video: fs.readFileSync("Media/ma_gif.mp4"), 
+        caption: "hello!",
+        gifPlayback: true
+    }
+)
+
+await sock.sendMessage(
+    id, 
+    { 
+        video: "./Media/ma_gif.mp4", 
+        caption: "hello!",
+        gifPlayback: true,
+    ptv: false // if set to true, will send as a `video note`
+    }
+)
+
+// send an audio file
+await sock.sendMessage(
+    id, 
+    { audio: { url: "./Media/audio.mp3" }, mimetype: 'audio/mp4' }
+    { url: "Media/audio.mp3" }, // can send mp3, mp4, & ogg
+)
+Notas
+ides el ID de WhatsApp de la persona o grupo a quien le estás enviando el mensaje.
+Debe estar en el formato[country code][phone number]@s.whatsapp.net
+Ejemplo para personas: +19999999999@s.whatsapp.net.
+Para grupos, debe tener el formato 123456789-123345@g.us.
+Para las listas de difusión, es [timestamp of creation]@broadcast.
+Para las historias, el ID es status@broadcast.
+Para los mensajes multimedia, la miniatura se puede generar automáticamente para imágenes y stickers, siempre que agregues jimpo sharpcomo dependencia en tu proyecto usando yarn add jimpo yarn add sharp. Las miniaturas para videos también se pueden generar automáticamente, aunque es necesario tenerlas ffmpeginstaladas en tu sistema.
+MiscGenerationOptions : información adicional sobre el mensaje. Puede tener los siguientes valores opcionales :
+const info: MessageOptions = {
+    quoted: quotedMessage, // the message you want to quote
+    contextInfo: { forwardingScore: 2, isForwarded: true }, // some random context info (can show a forwarded message with this too)
+    timestamp: Date(), // optional, if you want to manually set the timestamp of the message
+    caption: "hello there!", // (for media messages) the caption to send with the media (cannot be sent with stickers though)
+    jpegThumbnail: "23GD#4/==", /*  (for location & media messages) has to be a base 64 encoded JPEG if you want to send a custom thumb, 
+                                or set to null if you don't want to send a thumbnail.
+                                Do not enter this field if you want to automatically generate a thumb
+                            */
+    mimetype: Mimetype.pdf, /* (for media messages) specify the type of media (optional for all media types except documents),
+                                import {Mimetype} from '@whiskeysockets/baileys'
+                            */
+    fileName: 'somefile.pdf', // (for media messages) file name for the media
+    /* will send audio messages as voice notes, if set to true */
+    ptt: true,
+    /** Should it send as a disappearing messages. 
+     * By default 'chat' -- which follows the setting of the chat */
+    ephemeralExpiration: WA_DEFAULT_EPHEMERAL
+}
+Reenvío de mensajes
+const msg = getMessageFromStore('455@s.whatsapp.net', 'HSJHJWH7323HSJSJ') // implement this on your end
+await sock.sendMessage('1234@s.whatsapp.net', { forward: msg }) // WA forward the message!
+
+Leyendo mensajes
+Un conjunto de claves de mensaje debe marcarse explícitamente como leído. En el modo multidispositivo, no se puede marcar un chat completo como leído, como ocurre con Baileys Web. Esto significa que debe realizar un seguimiento de los mensajes no leídos.
+
+const key = {
+    remoteJid: '1234-123@g.us',
+    id: 'AHASHH123123AHGA', // id of the message you want to read
+    participant: '912121232@s.whatsapp.net' // the ID of the user that sent the  message (undefined for individual chats)
+}
+// pass to readMessages function
+// can pass multiple keys to read multiple messages as well
+await sock.readMessages([key])
+Copiar
+El ID del mensaje es el identificador único del mensaje que se marca como leído. En un [nombre del mensaje] WAMessage, messageIDse puede acceder a él mediante [nombre del mensaje] messageID = message.key.id.
+
+Actualizar presencia
+await sock.sendPresenceUpdate('available', id) 
+Descargar mensajes multimedia
+Si desea guardar los medios que recibió
+
+import { writeFile } from 'fs/promises'
+import { downloadMediaMessage } from '@whiskeysockets/baileys'
+
+sock.ev.on('messages.upsert', async ({ messages }) => {
+    const m = messages[0]
+
+    if (!m.message) return // if there is no text or media message
+    const messageType = Object.keys (m.message)[0]// get what type of message it is -- text, image, video
+    // if the message is an image
+    if (messageType === 'imageMessage') {
+        // download the message
+        const buffer = await downloadMediaMessage(
+            m,
+            'buffer',
+            { },
+            { 
+                logger,
+                // pass this so that baileys can request a reupload of media
+                // that has been deleted
+                reuploadRequest: sock.updateMediaMessage
+            }
+        )
+        // save to file
+        await writeFile('./my-download.jpeg', buffer)
+    }
+}
+Copiar
+Nota: WhatsApp elimina automáticamente los archivos multimedia antiguos de sus servidores. Para que el dispositivo pueda acceder a ellos, es necesario volver a subirlos desde otro dispositivo que los tenga. Esto se puede lograr mediante:
+
+const updatedMediaMsg = await sock.updateMediaMessage(msg)
+Copiar
+Eliminar mensajes
+const jid = '1234@s.whatsapp.net' // can also be a group
+const response = await sock.sendMessage(jid, { text: 'hello!' }) // send a message
+// sends a message to delete the given message
+// this deletes the message for everyone
+await sock.sendMessage(jid, { delete: response.key })
+Copiar
+Nota: la eliminación personal se admite a través de chatModify(siguiente sección)
+
+Actualización de mensajes
+const jid = '1234@s.whatsapp.net'
+
+await sock.sendMessage(jid, {
+      text: 'updated text goes here',
+      edit: response.key,
+    });
+Copiar
+Modificar chats
+WA utiliza una forma de comunicación cifrada para enviar actualizaciones de chat/aplicación. Esto ya está prácticamente implementado y ahora puedes enviar las siguientes actualizaciones:
+
+Archivar un chat
+
+const lastMsgInChat = await getLastMessageInChat('123456@s.whatsapp.net') // implement this on your end
+await sock.chatModify({ archive: true, lastMessages: [lastMsgInChat] }, '123456@s.whatsapp.net')
+Copiar
+Silenciar o activar el sonido de un chat
+
+// mute for 8 hours
+await sock.chatModify({ mute: 8*60*60*1000 }, '123456@s.whatsapp.net', [])
+// unmute
+await sock.chatModify({ mute: null }, '123456@s.whatsapp.net', [])
+Copiar
+Marcar un chat como leído/no leído
+
+const lastMsgInChat = await getLastMessageInChat('123456@s.whatsapp.net') // implement this on your end
+// mark it unread
+await sock.chatModify({ markRead: false, lastMessages: [lastMsgInChat] }, '123456@s.whatsapp.net')
+Copiar
+Eliminar un mensaje para mí
+
+await sock.chatModify(
+  { clear: { messages: [{ id: 'ATWYHDNNWU81732J', fromMe: true, timestamp: "1654823909" }] } }, 
+  '123456@s.whatsapp.net', 
+  []
+  )
+
+Copiar
+Eliminar un chat
+
+const lastMsgInChat = await getLastMessageInChat('123456@s.whatsapp.net') // implement this on your end
+await sock.chatModify({
+  delete: true,
+  lastMessages: [{ key: lastMsgInChat.key, messageTimestamp: lastMsgInChat.messageTimestamp }]
+},
+'123456@s.whatsapp.net')
+Copiar
+Anclar o desanclar un chat
+
+await sock.chatModify({
+  pin: true // or `false` to unpin
+},
+'123456@s.whatsapp.net')
+Copiar
+Destacar o desmarcar un mensaje
+
+await sock.chatModify({
+star: {
+    messages: [{ id: 'messageID', fromMe: true // or `false` }],
+        star: true // - true: Star Message; false: Unstar Message
+}},'123456@s.whatsapp.net');
+Copiar
+Nota: si arruinas una de tus actualizaciones, WA puede cerrar tu sesión en todos tus dispositivos y tendrás que iniciar sesión nuevamente.
+Varios
+Para comprobar si un ID determinado está en WhatsApp
+const id = '123456'
+const [result] = await sock.onWhatsApp(id)
+if (result.exists) console.log (`${id} exists on WhatsApp, as jid: ${result.jid}`)
+Copiar
+Para consultar el historial de chat en un grupo o con alguien TODO, si es posible
+Para obtener el estatus de alguna persona
+const status = await sock.fetchStatus("xyz@s.whatsapp.net")
+console.log("status: " + status)
+Copiar
+Para cambiar el estado de tu perfil
+const status = 'Hello World!'
+await sock.updateProfileStatus(status)
+Copiar
+Para cambiar tu nombre de perfil
+const name = 'My name'
+await sock.updateProfileName(name)
+Copiar
+Para obtener la imagen de visualización de alguna persona/grupo
+// for low res picture
+const ppUrl = await sock.profilePictureUrl("xyz@g.us")
+console.log("download profile picture from: " + ppUrl)
+// for high res picture
+const ppUrl = await sock.profilePictureUrl("xyz@g.us", 'image')
+Copiar
+Para cambiar su imagen de visualización o la de un grupo
+const jid = '111234567890-1594482450@g.us' // can be your own too
+await sock.updateProfilePicture(jid, { url: './new-profile-picture.jpeg' })
+Copiar
+Para eliminar su foto de visualización o la de un grupo
+const jid = '111234567890-1594482450@g.us' // can be your own too
+await sock.removeProfilePicture(jid)
+Copiar
+Para obtener la presencia de alguien (si está escribiendo o en línea)
+// the presence update is fetched and called here
+sock.ev.on('presence.update', json => console.log(json))
+// request updates for a chat
+await sock.presenceSubscribe("xyz@s.whatsapp.net") 
+Copiar
+Para bloquear o desbloquear al usuario
+await sock.updateBlockStatus("xyz@s.whatsapp.net", "block") // Block user
+await sock.updateBlockStatus("xyz@s.whatsapp.net", "unblock") // Unblock user
+Copiar
+Para obtener un perfil de negocio, como una descripción o categoría
+const profile = await sock.getBusinessProfile("xyz@s.whatsapp.net")
+console.log("business description: " + profile.description + ", category: " + profile.category)
+Copiar
+Por supuesto, reemplácelo xyzcon una identificación real.
+Grupos
+Para crear un grupo
+
+// title & participants
+const group = await sock.groupCreate("My Fab Group", ["1234@s.whatsapp.net", "4564@s.whatsapp.net"])
+console.log ("created group with id: " + group.gid)
+sock.sendMessage(group.id, { text: 'hello there' }) // say hello to everyone on the group
+Copiar
+Para agregar o eliminar personas a un grupo o degradar o promover personas
+
+// id & people to add to the group (will throw error if it fails)
+const response = await sock.groupParticipantsUpdate(
+    "abcd-xyz@g.us", 
+    ["abcd@s.whatsapp.net", "efgh@s.whatsapp.net"],
+    "add" // replace this parameter with "remove", "demote" or "promote"
+)
+Copiar
+Para cambiar el tema del grupo
+
+await sock.groupUpdateSubject("abcd-xyz@g.us", "New Subject!")
+Copiar
+Para cambiar la descripción del grupo
+
+await sock.groupUpdateDescription("abcd-xyz@g.us", "New Description!")
+Copiar
+Para cambiar la configuración del grupo
+
+// only allow admins to send messages
+await sock.groupSettingUpdate("abcd-xyz@g.us", 'announcement')
+// allow everyone to send messages
+await sock.groupSettingUpdate("abcd-xyz@g.us", 'not_announcement')
+// allow everyone to modify the group's settings -- like display picture etc.
+await sock.groupSettingUpdate("abcd-xyz@g.us", 'unlocked')
+// only allow admins to modify the group's settings
+await sock.groupSettingUpdate("abcd-xyz@g.us", 'locked')
+Copiar
+Dejar un grupo
+
+await sock.groupLeave("abcd-xyz@g.us") // (will throw error if it fails)
+Copiar
+Para obtener el código de invitación para un grupo
+
+const code = await sock.groupInviteCode("abcd-xyz@g.us")
+console.log("group code: " + code)
+Copiar
+Para revocar el código de invitación en un grupo
+
+const code = await sock.groupRevokeInvite("abcd-xyz@g.us")
+console.log("New group code: " + code)
+Copiar
+Para consultar los metadatos de un grupo
+
+const metadata = await sock.groupMetadata("abcd-xyz@g.us") 
+console.log(metadata.id + ", title: " + metadata.subject + ", description: " + metadata.desc)
+Copiar
+Para unirse al grupo usando el código de invitación
+
+const response = await sock.groupAcceptInvite("xxx")
+console.log("joined to: " + response)
+Copiar
+Por supuesto, reemplácelo xxxcon el código de invitación.
+
+Para obtener información del grupo mediante código de invitación
+
+const response = await sock.groupGetInviteInfo("xxx")
+console.log("group information: " + response)
+Copiar
+Para unirse al grupo usando groupInviteMessage
+
+const response = await sock.groupAcceptInviteV4("abcd@s.whatsapp.net", groupInviteMessage)
+console.log("joined to: " + response)
+Copiar
+Por supuesto, reemplácelo xxxcon el código de invitación.
+
+Para obtener la lista, solicite unirse
+
+const response = await sock.groupRequestParticipantsList("abcd-xyz@g.us")
+console.log(response)
+Copiar
+Para aprobar/rechazar la solicitud de unión
+
+const response = await sock.groupRequestParticipantsUpdate(
+    "abcd-xyz@g.us", // id group,
+    ["abcd@s.whatsapp.net", "efgh@s.whatsapp.net"],
+    "approve" // replace this parameter with "reject" 
+)
+console.log(response)
+Copiar
+Privacidad
+Para obtener la configuración de privacidad
+const privacySettings = await sock.fetchPrivacySettings(true)
+console.log("privacy settings: " + privacySettings)
+Copiar
+Para actualizar la privacidad de LastSeen
+const value = 'all' // 'contacts' | 'contact_blacklist' | 'none'
+await sock.updateLastSeenPrivacy(value)
+Copiar
+Para actualizar la privacidad en línea
+const value = 'all' // 'match_last_seen'
+await sock.updateOnlinePrivacy(value)
+Copiar
+Para actualizar la privacidad de la foto de perfil
+const value = 'all' // 'contacts' | 'contact_blacklist' | 'none'
+await sock.updateProfilePicturePrivacy(value)
+Copiar
+Para actualizar la privacidad del Estado
+const value = 'all' // 'contacts' | 'contact_blacklist' | 'none'
+await sock.updateStatusPrivacy(value)
+Copiar
+Para actualizar la privacidad de los recibos de lectura
+const value = 'all' // 'none'
+await sock.updateReadReceiptsPrivacy(value)
+Copiar
+Para actualizar la privacidad de Agregar Grupos
+const value = 'all' // 'contacts' | 'contact_blacklist' | 'none'
+await sock.updateGroupsAddPrivacy(value)
+Copiar
+Para actualizar el modo de desaparición predeterminado
+const duration = 86400 // 604800 | 7776000 | 0 
+await sock.updateDefaultDisappearingMode(duration)
+Escritura de funcionalidad personalizada
+Baileys está diseñado con funcionalidades personalizadas en mente. En lugar de bifurcar el proyecto y reescribir los componentes internos, puedes simplemente crear tus propias extensiones.
+
+Primero, habilite el registro de mensajes no manejados de WhatsApp configurando:
+
+const sock = makeWASocket({
+    logger: P({ level: 'debug' }),
+})
+Copiar
+Esto le permitirá ver todo tipo de mensajes que envía WhatsApp en la consola.
+
+Algunos ejemplos:
+
+Función para controlar el porcentaje de batería de tu teléfono. Al activar el registro, verás un mensaje emergente sobre la batería en la consola. {"level":10,"fromMe":false,"frame":{"tag":"ib","attrs":{"from":"@s.whatsapp.net"},"content":[{"tag":"edge_routing","attrs":{},"content":[{"tag":"routing_info","attrs":{},"content":{"type":"Buffer","data":[8,2,8,5]}}]}]},"msg":"communication"}
+
+El “marco” es el mensaje recibido, tiene tres componentes:
+
+tag-- de qué se trata este marco (por ejemplo, el mensaje tendrá "mensaje")
+attrs-- un par clave-valor de cadena con algunos metadatos (generalmente contiene el ID del mensaje)
+content-- los datos reales (por ejemplo, un nodo de mensaje tendrá el contenido del mensaje real en él)
+Lea más sobre este formato aquí
+Puede registrar una devolución de llamada para un evento utilizando lo siguiente:
+
+// for any message with tag 'edge_routing'
+sock.ws.on(`CB:edge_routing`, (node: BinaryNode) => { })
+// for any message with tag 'edge_routing' and id attribute = abcd
+sock.ws.on(`CB:edge_routing,id:abcd`, (node: BinaryNode) => { })
+// for any message with tag 'edge_routing', id attribute = abcd & first content node routing_info
+sock.ws.on(`CB:edge_routing,id:abcd,routing_info`, (node: BinaryNode) => { })
+Copiar
+Además, este repositorio ahora tiene licencia GPL 3 ya que utiliza libsignal-node
