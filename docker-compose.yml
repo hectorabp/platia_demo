@@ -39,9 +39,9 @@ services:
     restart: unless-stopped
     environment:
       - TZ=America/Asuncion
-      - REDIS_HOST=${REDIS_PEA_HOST}
-      - REDIS_PORT=${REDIS_PEA_PORT}
-      - REDIS_PASSWORD=${REDIS_PEA_PASSWORD}
+      - REDIS_HOST=${REDIS_PLATIA_HOST}
+      - REDIS_PORT=${REDIS_PLATIA_PORT}
+      - REDIS_PASSWORD=${REDIS_PLATIA_PASSWORD}
       - HTTP_URL=TRUE
     networks:
       - platcom_net
@@ -53,6 +53,13 @@ services:
       - "traefik.http.middlewares.whatsapp_platia-strip.stripprefix.prefixes=/whatsapp_platia"
       - "traefik.http.middlewares.whatsapp_platia-strip.stripprefix.forceSlash=true"
       - "traefik.http.routers.whatsapp_platia.middlewares=whatsapp_platia-strip"
+
+  redis_platia:
+    image: redis:7-alpine
+    container_name: redis_platia
+    command: redis-server --requirepass ${REDIS_PLATIA_PASSWORD}
+    networks:
+      - platcom_net
 
 networks:
   platcom_net:
