@@ -29,7 +29,7 @@ services:
     networks:
       - platcom_net
     volumes:
-      - ./backend:/app
+      - ./conversation_manager:/app
 
   whatsapp_platia:
     build:

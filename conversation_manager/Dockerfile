@@ -4,15 +4,15 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # Copiar dependencias e instalarlas
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+COPY requirements.txt ./app/requirements.txt
+RUN pip install --no-cache-dir -r ./app/requirements.txt
 
 # Copiar el código
-COPY configs /app/configs
-COPY routes /app/routes
-COPY controller /app/controller
-COPY modules /app/modules
-COPY app.py /app/app.py
+COPY configs/ ./app/configs
+COPY routes/ ./app/routes
+COPY controller/ ./app/controller
+COPY modules/ ./app/modules
+COPY app.py ./app/app.py
 
 # Establecer PYTHONUNBUFFERED para desactivar el búfer
 ENV PYTHONUNBUFFERED=1
