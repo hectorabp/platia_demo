@@ -1,0 +1,607 @@
+{
+  "name": "platia_flow_demo",
+  "nodes": [
+    {
+      "parameters": {
+        "channels": "whatsapp_platia",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.redisTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "1b59f60d-1133-46fa-a47d-2d7ad099c0c8",
+      "name": "Redis Trigger",
+      "credentials": {
+        "redis": {
+          "id": "uNXnZN2CEhTqKFU3",
+          "name": "Redis account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a778ebab-5115-4d27-965d-d96118fa8e4e",
+              "name": "message",
+              "value": "={{ $json.message }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ],
+      "id": "affdd28d-3d51-4300-8804-dbbe57d34189",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://conversation_manager:5000/api/process_message",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={\"role\": \"user\", \"text\": \"{{ $json.message.message }}\"}"
+            },
+            {
+              "name": "tokens",
+              "value": "{\"prompt_tokens\": 0, \"completion_tokens\": 0, \"total_tokens\": 0}"
+            },
+            {
+              "name": "send_data",
+              "value": "{\"audio\": null, \"image\": null, \"location\": null, \"document\": null, \"video\": null}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $json.message.phone }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        656,
+        0
+      ],
+      "id": "f551f66e-171c-491e-8d12-f695adeecbce",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Function node\nreturn items.map(item => {\n  const json = item.json || {};\n  const conversation = json.conversation || {};\n  const messagesInput = conversation.message || [];\n\n  // Inicializamos arrays separados\n  const userMessages = [];\n  const systemMessages = [];\n\n  if (Array.isArray(messagesInput) && messagesInput.length > 0) {\n    for (const msg of messagesInput) {\n      const role = msg.role === 'system' ? 'system' :\n                   msg.role === 'assistant' ? 'system' : // tratamos assistant como system\n                   'user';\n\n      // Extraer texto\n      let text = '';\n      if (msg.content) {\n        if (Array.isArray(msg.content)) {\n          text = msg.content\n            .map(c => c.text ?? '')\n            .filter(t => t)\n            .join(' ');\n        } else if (typeof msg.content === 'string') {\n          text = msg.content;\n        }\n      }\n\n      if (!text) continue;\n\n      // Guardar en el array correspondiente\n      if (role === 'user') {\n        userMessages.push(text);\n      } else {\n        systemMessages.push(text);\n      }\n    }\n  } else {\n    // fallback mensaje único\n    const userText = json.message?.text ?? json.message ?? json.content ?? json.text ?? '';\n    if (userText) userMessages.push(String(userText));\n  }\n\n  // Guardamos en conversation\n  item.json.conversation = {\n    user: userMessages,\n    system: systemMessages,\n    session_id: conversation.session_id ?? String(Date.now()),\n    state: conversation.state ?? [],\n    transmitter: conversation.transmitter ?? json.transmitter ?? null\n  };\n\n  return item;\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "id": "5ff071d0-1d19-4911-983a-0b5ce5ee7c86",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d55d2192-bea7-4d04-a5ab-06cb071f9337",
+              "name": "message",
+              "value": "={{ $json.message }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1456,
+        0
+      ],
+      "id": "8bf6bbc3-1e76-4dd3-a14b-0eb8d307f722",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3796fd17-7c4c-47c7-bca2-d24fc07ed7d7",
+              "name": "title",
+              "value": "Premio Emprendedor del Año (PEA)",
+              "type": "string"
+            },
+            {
+              "id": "f2f97180-f9d2-40ea-a8f5-4a03e03b921e",
+              "name": "content",
+              "value": "# **Farmalife — descripción extendida (visión general)**\n\n**Farmalife** es una cadena nacional de farmacias orientada a ofrecer **salud accesible, asesoría profesional y conveniencia**. Farmalife combina:\n\n* **Cobertura urbana focal** en Asunción, Lambaré y San Lorenzo con 20 sucursales estratégicas (10 Asunción / 3 Lambaré / 7 San Lorenzo).\n\n* **Omnicanalidad**: tiendas físicas 24/7 (en puntos seleccionados), web con catálogo y e-commerce, pedido por WhatsApp y delivery urbano rápido (misma hora / 2 horas según zona).\n\n* **Servicios clínicos anexos**: toma de presión, vacunatorio (vacunas estacionales), consejos farmacéuticos (farmacéutico presencial y por chat), gestión de recetas electrónicas y programa de adherencia a tratamientos.\n\n* **Política de precios**: mezcla de marcas premium y genéricos competitivos; promociones semanales (ej. “Fin de Salud” con descuentos hasta 40%) y plan de fidelidad “Vida+” con puntos y beneficios (envío gratis desde un mínimo y descuentos especiales en cumpleaños).\n\n* **Responsabilidad social**: campañas periódicas de prevención (hipertensión, diabetes), convenios con centros de salud y participación en programas estatales cuando aplique.\n\n**Misión:** Facilitar el acceso responsable y confiable a medicamentos y productos de cuidado personal, cuidando la salud de las familias con asesoría profesional y soluciones convenientes.  \n **Visión:** Ser la primera opción de farmacia en Asunción y Gran Asunción por atención, precio y conveniencia.\n\n---\n\n# **3\\) Servicios operativos y modelo de atención**\n\n* **Horario**: 18 sucursales con horario extendido 8:00–22:00; 2 sucursales emblemáticas (centro y Terminal) 24/7.\n\n* **Canales de venta**: web (catálogo \\+ carrito), venta por WhatsApp Business (catálogo integrado), telefonía, y estaciones de autoservicio en sucursales grandes. Web: www.farmalife.com.py, redes sociales Facebook e instagram: @Farmalife\n\n* **Logística**: un centro de distribución central en Gran Asunción (optimizar rotación y reposición diaria), y alianza con couriers locales para entregas fuera de radio urbano.\n\n* **Talento**: cada sucursal con al menos 1 farmacéutico titulado (turnos rotativos), cajero/a y un encargado de farmacia; entrenamientos trimestrales y protocolos de cumplimiento sanitario.\n\n---\n\n# **4\\) Direcciones**\n\n## **Asunción — 10 sucursales**\n\n1. **Asunción Centro / Microcentro** — Av. Mariscal López 123 (esquina Rodríguez de Francia) — Sucursal Central (flagship, 24/7).\n\n2. **Villa Morra** — Av. San Martín 2200 (frente a centro comercial) — formato estándar.\n\n3. **Bañados (Cerro Corá)** — Avda. Eusebio Ayala 3450 (casi Yegros) — estándar.\n\n4. **Barrio Obrero** — Av. Choferes del Chaco 560 (c/ India Juliana) — mini.\n\n5. **Madame Lynch** — Av. Carlos A. López 1800 (zona comercial) — estándar.\n\n6. **Manorá / Salvador del Mundo** — Av. Molas López 2780 — mini.\n\n7. **Terminal de Ómnibus** — Av. Fernando de la Mora 50 — sucursal 24/7 (turnos nocturnos).\n\n8. **San Vicente / República** — Av. España 900 (zona de clínicas) — estándar con vacunatorio.\n\n9. **Carmelitas** — Av. General Santos 450 — formato compacto.\n\n10. **San Jerónimo / Centro Médico** — Av. Primer Presidente 1350 (cercano a hospitales) — estándar.\n\n## **Lambaré — 3 sucursales**\n\n1. **Centro de Lambaré** — Av. Cerro Cora 210 (frente a plaza central) — estándar.\n\n2. **Villa Aurelia (límite Lambaré-Asunción)** — Av. Yegros 700 — mini.\n\n3. **Lambaré Sur / Ruta Luque** — Ruta II (Carretera Central) km 9,5 — estándar (alto tránsito).\n\n## **San Lorenzo — 7 sucursales**\n\n1. **San Lorenzo Centro** — Av. Mariscal López 800 (cercano Municipalidad) — flagship regional.\n\n2. **Universidad (zona UCA / UNA)** — Av. España 1200 — mini (foco en estudiantes).\n\n3. **San Lorenzo Norte (Ruta 2\\)** — Ruta 2, zona comercial km 8 — estándar.\n\n4. **Avenida Boggiani** — Boggiani 450 — mini.\n\n5. **Zona Hospitalaria** — Av. Itaipú 110 (cercano a centros de salud) — estándar con servicio de adherencia a tratamientos.\n\n6. **Barrio Industrial** — Calle 12 c/ Av. San Lorenzo — formato industrial (turnos) para trabajadores.\n\n7. **San Lorenzo Este (mall local)** — local en centro comercial pequeño — estándar.\n\n---\n\n# **5\\) Lista de productos**\n\n1. Paracetamol 500 mg — caja x20 tabletas — **Gs. 8.500**\n\n2. Ibuprofeno 400 mg — caja x20 — **Gs. 18.000**\n\n3. Aspirina (ácido acetilsalicílico) 100 mg — caja x24 — **Gs. 10.000**\n\n4. Omeprazol 20 mg — caja x28 cápsulas — **Gs. 35.000**\n\n5. Ranitidina (o antacid genérico H2) — caja x20 — **Gs. 28.000**\n\n6. Salbutamol inhalador 100 mcg — **Gs. 85.000**\n\n7. Loratadina 10 mg — caja x10 — **Gs. 22.000**\n\n8. Cetirizina 10 mg — caja x10 — **Gs. 20.000**\n\n9. Amoxicilina 500 mg — caja x16 cápsulas — **Gs. 60.000**\n\n10. Amoxicilina \\+ ácido clavulánico 875/125 mg — caja x8 — **Gs. 120.000**\n\n11. Metronidazol 500 mg — caja x12 — **Gs. 25.000**\n\n12. Azitromicina 500 mg — caja x3 — **Gs. 45.000**\n\n13. Diclofenac 50 mg — caja x20 — **Gs. 24.000**\n\n14. Naproxeno 500 mg — caja x20 — **Gs. 30.000**\n\n15. Hidrocortisona crema 1% — tubo 30 g — **Gs. 22.000**\n\n16. Crema antibiótica (mupirocina 2%) — tubo 15 g — **Gs. 55.000**\n\n17. Antiséptico (clorhexidina 0,12%) — frasco 250 ml — **Gs. 28.000**\n\n18. Termómetro digital — **Gs. 145.000**\n\n19. Tiritas / vendajes surtidos (pack) — **Gs. 8.500**\n\n20. Jeringas 5 ml (pack x10) — **Gs. 12.000**\n\n21. Insulina (bolígrafo o vial, según marca) — **Gs. 150.000** (modelo genérico)\n\n22. Lancetas para glucemia (pack 50\\) — **Gs. 35.000**\n\n23. Test de glucosa (tiras, pack 50\\) — **Gs. 220.000**\n\n24. Multivitamínico adulto (30 cápsulas) — **Gs. 85.000**\n\n25. Vitamina C 500 mg (pack 30\\) — **Gs. 35.000**\n\n26. Ácido fólico 5 mg (pack 30\\) — **Gs. 18.000**\n\n27. Suero fisiológico 500 ml — **Gs. 12.000**\n\n28. Solución para lentes de contacto (360 ml) — **Gs. 75.000**\n\n29. Crema hidratante corporal 400 ml (marca genérica) — **Gs. 45.000**\n\n30. Champú anticaspa 250 ml — **Gs. 35.000**\n\n31. Protector solar SPF 50 (tubo 100 ml) — **Gs. 85.000**\n\n32. Colirio lubricante (artificial tears) 10 ml — **Gs. 28.000**\n\n33. Pastillas para la garganta (antisépticas) — frasco — **Gs. 22.000**\n\n34. Jarabe para la tos (adultos) 120 ml — **Gs. 28.000**\n\n35. Antidiarreico (loperamida) — caja x10 — **Gs. 14.000**\n\n36. Sales de rehidratación oral (SRO) – sachet x10 — **Gs. 12.000**\n\n37. Crema/gel antiinflamatorio tópico (diclofenac gel 1%) — tubo 100 g — **Gs. 42.000**\n\n39. Anticonceptivos orales combinados (paquete 21\\) — **Gs. 60.000**\n\n40. Anticonceptivo de emergencia — blister único — **Gs. 40.000**\n\n41. Test de embarazo (cassette) — **Gs. 28.000**\n\n42. Cremas antifúngicas (clotrimazol 1%) — tubo 20 g — **Gs. 18.000**\n\n43. Gel yodado (povidona yodada 10%) — frasco 125 ml — **Gs. 9.500**\n\n44. Sanguchera termica / bolsa isotérmica pequeña (para transporte de medicamentos) — **Gs. 55.000**\n\n45. Analgésico/antigripal combinado (paracetamol \\+ cafeína \\+ otros) — caja x10 — **Gs. 28.000**\n\n46. Colchón / almohadilla térmica portátil (pequeña) — **Gs. 95.000**\n\n47. Antiácido (tabletas masticables, Bicarbonato o combinados) — frasco 30 — **Gs. 18.000**\n\n48. Suplemento de calcio \\+ vitamina D — frasco 60 — **Gs. 95.000**\n\n49. Probióticos (30 cápsulas) — **Gs. 120.000**\n\n50. Producto de cuidado íntimo (toallitas/gel íntimo) — **Gs. 28.000**\n\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        304,
+        480
+      ],
+      "id": "0db94e86-6c00-4a46-a19c-5472a4505dad",
+      "name": "Edit Fields3"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1,
+      "position": [
+        544,
+        480
+      ],
+      "id": "59fa9cc2-2461-4c7f-846f-b2045b54450e",
+      "name": "Supabase Vector Store",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0wCgmasn0wKuXfYy",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        480,
+        720
+      ],
+      "id": "6c51000f-fc62-4e93-836f-1cd18ad77502",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "krp9PufNs7D16WmX",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        688,
+        704
+      ],
+      "id": "82ee2abd-0da1-4ceb-b9c7-5adfc3885e00",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.textSplitterCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        784,
+        928
+      ],
+      "id": "8fdd4100-90ba-4e32-baf9-b8149b68b327",
+      "name": "Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1008,
+        416
+      ],
+      "id": "baf96b6f-5469-48a8-b64a-dbfbadf00e30",
+      "name": "Embeddings OpenAI1",
+      "credentials": {
+        "openAiApi": {
+          "id": "krp9PufNs7D16WmX",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "Nodo_conocimiento_Farmalife",
+        "toolDescription": "Usa esto para obtener información de la cadena de farmacias Farmalife",
+        "tableName": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1,
+      "position": [
+        1024,
+        208
+      ],
+      "id": "b0d18b08-20e3-400b-b3e1-38e7af6f89a2",
+      "name": "Nodo_Conocimiento_PEA",
+      "credentials": {
+        "supabaseApi": {
+          "id": "0wCgmasn0wKuXfYy",
+          "name": "Supabase account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "publish",
+        "channel": "whatsapp_platia",
+        "messageData": "={\"transmitter\": \"N8N\",\"phone\": {{ $json.conversation.transmitter }},\"name\": \"\",\"message\": \"{{ $('Edit Fields1').item.json.message.content.text }}\",\"send\": {}}"
+      },
+      "type": "n8n-nodes-base.redis",
+      "typeVersion": 1,
+      "position": [
+        2080,
+        0
+      ],
+      "id": "effa5b7e-2c9f-417d-968e-a3f20af525b2",
+      "name": "Redis",
+      "credentials": {
+        "redis": {
+          "id": "uNXnZN2CEhTqKFU3",
+          "name": "Redis account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ce0aafe1-85ed-4e6f-b880-600e97d93793",
+              "leftValue": "={{ $json.message.transmitter }}",
+              "rightValue": "whatsapp_platia",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "bf2e4337-4b11-4136-93d7-75523a83b5db",
+              "leftValue": "={{ $json.message.message }}",
+              "rightValue": "[Mensaje no textual]",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        432,
+        0
+      ],
+      "id": "c05fb56a-922d-4987-9add-6b4f8e05f7aa",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://conversation_manager:5000/api/process_message",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "content",
+              "value": "={\"role\": \"{{ $('Edit Fields2').item.json.message.role }}\", \"text\": \"{{ $json.message.content.text }}\"}"
+            },
+            {
+              "name": "tokens",
+              "value": "{\"prompt_tokens\": 0, \"completion_tokens\": 0, \"total_tokens\": 0}"
+            },
+            {
+              "name": "send_data",
+              "value": "{\"audio\": null, \"image\": null, \"location\": null, \"document\": null, \"video\": null}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $json.message.content.transmitter }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1872,
+        0
+      ],
+      "id": "277a8186-a837-4cac-9b98-a62f6e23acce",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5-mini-2025-08-07",
+          "mode": "list",
+          "cachedResultName": "GPT-5-MINI-2025-08-07"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=={{ $json.conversation.user }}"
+            },
+            {
+              "content": "=Eres un agente de atención al cliente de la farmacia **Farmalife**.  \nTu tarea es responder siempre de manera **corta, clara y directa**, sin dar explicaciones largas ni textos extensos.  \n\nUsa la información relevante que se te proporciona (En contexto de Nodo_Conocimiento_Farmalife) solo si es necesario para responder la consulta.  \n\nReglas principales:\n- Lee toda la conversación del `user` y `system` para tener contexto. (Cada mensaje está separado por comas \",\". Ejemplo: user[Hola,¿Tienen paracetamol?] en ese ejemplo hay 2 mensajes distintos: uno es \"Hola\" y el otro \"¿Tienen paracetamol?\". No están en la misma oración pero forman el contexto de la conversación).  \n- **Nunca repitas información que ya diste en la conversación**, salvo que el usuario lo pida explícitamente.  \n- Si el usuario responde con un cierre (ej: \"ok\", \"gracias\", \"dale\", \"perfecto\"), solo responde con un breve mensaje de cierre amable como:  \n  - \"¡Genial, quedo a disposición! 🙌\"  \n  - \"¡Perfecto, gracias por contactarnos! 😊\"  \n  - o no responder nada, si el contexto ya está cerrado.  \n- Si el usuario solo saluda al inicio, responde con un saludo breve y cordial: \"Hola, ¿en qué puedo ayudarle? 😊\".  \n- No concatenes respuestas anteriores ni repitas lo que ya está en el historial del `system`.  \n- Mencioná promociones o delivery **una sola vez** durante toda la conversación.  \n- Responde siempre según la documentación de Farmalife y el contexto de la conversación.  \n- Saluda solo una vez en toda la sesión.\n\n### Proceso de venta (si el cliente pide un producto):\n1. Confirmar disponibilidad y precio.  \n   Ejemplo: \"Sí, tenemos Paracetamol 500 mg x20 → Gs. 8.500. ¿Querés delivery o pasar a retirar en sucursal?\"  \n2. Si elige **delivery**:  \n   - Preguntar ubicación para coordinar envío.  \n   - Informar costo fijo: \"El costo del delivery es Gs. 25.000 en todo el Departamento Central.\"  \n   - Confirmar que el repartidor se pondrá en contacto.  \n3. Preguntar forma de pago:  \n   - Opción efectivo.  \n   - Opción tarjeta (débito o crédito).  \n4. Cerrar con confirmación:  \n   \"Perfecto, tu pedido está registrado. El delivery se comunicará contigo en breve 🙌\".  \n5. Si el user ya confirmo que va a comprar no lo vuelvas a pedir que confirme, en todo caso preguntale si va a querer factura, en caso de que quiera pedile RUC, Nombre y Apellido para la factura.\n### Formato de salida obligatorio:\nSiempre responde en **JSON válido** con este formato exacto:\n\n{\n  \"text\": \"Aquí va la respuesta breve y amable\",\n  \"transmitter\": \"{{ $('Code').item.json.conversation.transmitter }}\"\n}\n\n### Preguntas frecuentes (usar solo si el usuario lo pregunta):\n¿Tienen delivery? → Sí, hacemos envíos en Asunción, Lambaré y San Lorenzo.  \n¿Dónde están las sucursales? → Tenemos 10 en Asunción, 3 en Lambaré y 7 en San Lorenzo.  \n¿Tienen paracetamol? → Sí, Paracetamol 500 mg caja x20 → Gs. 8.500.  \n¿Tienen ibuprofeno? → Sí, Ibuprofeno 400 mg caja x20 → Gs. 18.000.  \n¿Horario de atención? → De 8:00 a 22:00 en la mayoría de las sucursales; dos locales funcionan 24/7.  \n¿Tienen promociones? → Sí, lanzamos descuentos semanales en medicamentos y cuidado personal.  \n",
+              "role": "system"
+            },
+            {
+              "content": "=={{ $json.conversation.system }}",
+              "role": "assistant"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1088,
+        0
+      ],
+      "id": "1d045410-34c2-4e6b-9142-6d09d279bc6d",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "krp9PufNs7D16WmX",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "65f7d8a9-97fc-4723-98ed-8ca974ea16e9",
+              "name": "message.content",
+              "value": "={{ $json.message.content }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1664,
+        0
+      ],
+      "id": "94272fe8-7c03-4085-80ae-6c396c27917b",
+      "name": "Edit Fields1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Redis Trigger": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields3": {
+      "main": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Supabase Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Nodo_Conocimiento_PEA",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nodo_Conocimiento_PEA": {
+      "ai_tool": [
+        [
+          {
+            "node": "Message a model",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Redis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4713f235-f390-4573-847a-ae0da6bc6c71",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "92c6a3c05e6b3f1aaacba8d64b3df43b9c41210374aae38fc578c665c3a3e353"
+  },
+  "id": "3rZyv4BytY4NtSoH",
+  "tags": []
+}
